@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>記憶翻牌</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #0f172a; /* Tailwind slate-900 */
+            color: #f8fafc; /* Tailwind slate-50 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+            overflow-x: hidden;
+        }
+
+        h1 {
+            text-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            letter-spacing: 0.05em;
+        }
+
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 100%;
+            max-width: 480px;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-box {
+            background-color: #1e293b; /* slate-800 */
+            border: 1px solid #334155; /* slate-700 */
+            border-radius: 12px;
+            padding: 0.75rem;
+            text-align: center;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 2px solid #334155;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+            perspective: 1000px;
+            position: relative;
+            width: 100%;
+            max-width: 480px;
+            aspect-ratio: 1 / 1.1;
+        }
+
+        .card {
+            background-color: transparent;
+            cursor: pointer;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+            width: 100%;
+            height: 100%;
+            min-height: 70px;
+        }
+
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+            user-select: none;
+        }
+
+        @media (min-width: 480px) {
+             .card-face { font-size: 3.5rem; }
+        }
+
+        .card-back {
+            background: linear-gradient(135deg, #6366f1, #4338ca); /* indigo-500 to indigo-700 */
+            border: 2px solid #4f46e5;
+            /* Geometric pattern */
+            background-image: radial-gradient(circle at center, rgba(255,255,255,0.15) 2px, transparent 3px);
+            background-size: 16px 16px;
+        }
+
+        .card-front {
+            background-color: #f1f5f9; /* slate-100 */
+            color: #0f172a;
+            transform: rotateY(180deg);
+            border: 2px solid #cbd5e1;
+        }
+
+        .card.matched .card-front {
+            background-color: #dcfce7; /* green-100 */
+            border-color: #22c55e;
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(15, 23, 42, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+            z-index: 20;
+            backdrop-filter: blur(4px);
+            text-align: center;
+            padding: 2rem;
+            transition: opacity 0.3s ease;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .btn {
+            background: linear-gradient(to bottom, #10b981, #059669); /* emerald */
+            color: white;
+            font-weight: 700;
+            border: none;
+            padding: 0.75rem 2rem;
+            font-size: 1.125rem;
+            border-radius: 9999px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+            transition: all 0.2s;
+            margin-top: 1.5rem;
+            letter-spacing: 0.05em;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+            background: linear-gradient(to bottom, #34d399, #10b981);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <h1 class="text-3xl md:text-4xl font-bold text-indigo-400 mb-6">記憶翻牌</h1>
+
+    <div class="stats-bar font-mono">
+        <div class="stat-box">
+            <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">步數</div>
+            <div id="moves" class="font-bold text-white text-2xl">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="text-slate-400 text-xs uppercase font-bold tracking-wider mb-1">時間</div>
+            <div id="time" class="font-bold text-white text-2xl">0s</div>
+        </div>
+        <div class="stat-box relative overflow-hidden">
+            <div class="text-yellow-500 text-xs uppercase font-bold tracking-wider mb-1">最佳步數</div>
+            <div id="best-score" class="font-bold text-yellow-400 text-2xl">-</div>
+        </div>
+    </div>
+
+    <div id="game-board">
+        <!-- Start Screen -->
+        <div id="start-screen" class="overlay">
+            <h2 class="text-2xl font-bold mb-4 text-white">準備開始</h2>
+            <div class="text-slate-300 text-sm leading-relaxed space-y-2 text-left bg-slate-800/50 p-4 rounded-lg">
+                <p>👉 <strong>規則：</strong> 翻開兩張卡片，圖案相同即配對成功。</p>
+                <p>🏆 <strong>目標：</strong> 用<strong>最少步數</strong>找出所有配對。</p>
+                <p>💾 您的最佳成績將會自動儲存。</p>
+            </div>
+            <button id="start-btn" class="btn">開始遊戲</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="overlay hidden">
+            <div class="text-6xl mb-4">🎉</div>
+            <h2 class="text-3xl font-bold mb-4 text-emerald-400">過關成功！</h2>
+            <div class="bg-slate-800/80 p-5 rounded-xl w-full max-w-xs space-y-3 mb-2">
+                <div class="flex justify-between items-center text-lg">
+                    <span class="text-slate-300">總計步數:</span>
+                    <span id="final-moves" class="font-bold text-white text-2xl">0</span>
+                </div>
+                <div class="flex justify-between items-center text-lg border-t border-slate-700 pt-3">
+                    <span class="text-slate-300">花費時間:</span>
+                    <span class="font-bold text-white text-xl"><span id="final-time">0</span>s</span>
+                </div>
+            </div>
+            <p id="new-record-msg" class="text-yellow-400 font-bold hidden animate-bounce mt-2">🌟 新的最佳紀錄！ 🌟</p>
+            <button id="restart-btn" class="btn">再玩一次</button>
+        </div>
+    </div>
+
+    <script>
+        const emojis = ['🐶', '🐱', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁'];
+        let cards = [];
+        let hasFlippedCard = false;
+        let lockBoard = false;
+        let firstCard, secondCard;
+        
+        let moves = 0;
+        let matches = 0;
+        let timerInterval;
+        let seconds = 0;
+        let bestMoves = Infinity;
+        const LOCAL_STORAGE_KEY = 'memoryMatchBestScore_v2';
+
+        // DOM Elements
+        const board = document.getElementById('game-board');
+        const movesElement = document.getElementById('moves');
+        const timeElement = document.getElementById('time');
+        const bestScoreElement = document.getElementById('best-score');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+
+        function initGame() {
+            // Load high score
+            const savedBest = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (savedBest) {
+                bestMoves = parseInt(savedBest, 10);
+                bestScoreElement.textContent = bestMoves;
+            }
+
+            // Create pairs
+            cards = [...emojis, ...emojis];
+            
+            // Generate cards in DOM
+            cards.forEach((emoji, index) => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.dataset.emoji = emoji;
+                card.style.order = index; // Initial order
+                
+                card.innerHTML = `
+                    <div class="card-face card-front">${emoji}</div>
+                    <div class="card-face card-back"></div>
+                `;
+                
+                card.addEventListener('click', flipCard);
+                // Insert before overlays so overlays sit on top
+                board.insertBefore(card, startScreen);
+            });
+        }
+
+        function startGame() {
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            document.getElementById('new-record-msg').classList.add('hidden');
+            
+            // Reset state
+            moves = 0;
+            matches = 0;
+            seconds = 0;
+            movesElement.textContent = moves;
+            timeElement.textContent = '0s';
+            
+            hasFlippedCard = false;
+            lockBoard = false;
+            firstCard = null;
+            secondCard = null;
+
+            // Unflip and reset matched state for all cards
+            const allCards = document.querySelectorAll('.card');
+            allCards.forEach(card => {
+                card.classList.remove('flipped', 'matched');
+            });
+            
+            // Wait for flip animation to finish before shuffling
+            setTimeout(() => {
+                 shuffleCards();
+                 startTimer();
+            }, 400);
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                seconds++;
+                timeElement.textContent = seconds + 's';
+            }, 1000);
+        }
+
+        function shuffleCards() {
+            const cardElements = document.querySelectorAll('.card');
+            cardElements.forEach(card => {
+                let randomPos = Math.floor(Math.random() * 16);
+                card.style.order = randomPos;
+            });
+        }
+
+        function flipCard() {
+            if (lockBoard) return;
+            if (this === firstCard) return;
+
+            this.classList.add('flipped');
+
+            if (!hasFlippedCard) {
+                // First click
+                hasFlippedCard = true;
+                firstCard = this;
+                return;
+            }
+
+            // Second click
+            secondCard = this;
+            moves++;
+            movesElement.textContent = moves;
+            checkForMatch();
+        }
+
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.emoji === secondCard.dataset.emoji;
+            isMatch ? disableCards() : unflipCards();
+        }
+
+        function disableCards() {
+            firstCard.removeEventListener('click', flipCard);
+            secondCard.removeEventListener('click', flipCard);
+            
+            firstCard.classList.add('matched');
+            secondCard.classList.add('matched');
+
+            matches++;
+            resetBoardState();
+
+            if (matches === emojis.length) {
+                setTimeout(gameWon, 600);
+            }
+        }
+
+        function unflipCards() {
+            lockBoard = true;
+            setTimeout(() => {
+                firstCard.classList.remove('flipped');
+                secondCard.classList.remove('flipped');
+                resetBoardState();
+            }, 1000);
+        }
+
+        function resetBoardState() {
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+        }
+
+        function gameWon() {
+            clearInterval(timerInterval);
+            
+            document.getElementById('final-moves').textContent = moves;
+            document.getElementById('final-time').textContent = seconds;
+            
+            // Check for new best score
+            if (moves < bestMoves) {
+                bestMoves = moves;
+                localStorage.setItem(LOCAL_STORAGE_KEY, bestMoves);
+                bestScoreElement.textContent = bestMoves;
+                document.getElementById('new-record-msg').classList.remove('hidden');
+            }
+
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        // Attach event listeners
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', startGame);
+
+        // Initialize game structure on load
+        window.addEventListener('DOMContentLoaded', initGame);
+
+    </script>
+</body>
+</html>
